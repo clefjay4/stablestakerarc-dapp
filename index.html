@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>StableStakerArc DApp</title>
+  <script src="https://cdn.jsdelivr.net/npm/web3@1.10.0/dist/web3.min.js"></script>
+  <style>
+    body {
+      background: #0a0a0a;
+      color: #fff;
+      font-family: Arial, sans-serif;
+      text-align: center;
+      padding: 40px;
+    }
+    h1 {
+      color: #00ffb3;
+    }
+    button {
+      background: #00ffb3;
+      border: none;
+      color: #000;
+      padding: 12px 24px;
+      margin: 10px;
+      border-radius: 8px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    input {
+      padding: 10px;
+      margin: 10px;
+      border-radius: 6px;
+      border: 1px solid #333;
+      width: 200px;
+    }
+    .container {
+      background: #111;
+      border-radius: 12px;
+      padding: 20px;
+      display: inline-block;
+      margin-top: 30px;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>🪙 StableStakerArc</h1>
+  <p>Stake USDC on Arc Testnet and earn 5% rewards</p>
+
+  <button onclick="connectWallet()">Connect Wallet</button>
+  <p id="wallet-address"></p>
+
+  <div class="container">
+    <h3>Stake USDC</h3>
+    <input id="stakeAmount" type="number" placeholder="Amount in USDC">
+    <button onclick="stake()">Stake</button>
+  </div>
+
+  <div class="container">
+    <h3>Your Stake Info</h3>
+    <button onclick="getMyStake()">Get My Stake</button>
+    <p id="stakeInfo"></p>
+  </div>
+
+  <div class="container">
+    <h3>Withdraw Stake</h3>
+    <button onclick="withdraw()">Withdraw</button>
+  </div>
+
+  <script>
+    let web3;
+    let account;
+    const contractAddress = "0xc3B2a6DD055F9c36D55A1D9267B94008d1789472"; // Your deployed StableStakerArc contract
+    const usdcAddress = "0x3600000000000000000000000000000000000000";
+
+    // Minimal ABI for your contract
+    const contractABI = [
+      {"inputs":[{"internalType":"address","name":"_usdc","type":"address"},{"internalType":"uint256","name":"_rewardPercent","type":"uint256"}],"stateMutability":"nonpayable","type":"constructor"},
+      {"anonymous":false,"inputs":[{"indexed":false,"internalType":"address","name":"user","type":"address"},{"indexed":false,"internalType":"uint256","name":"amount","type":"uint256"}],"name":"Staked","type":"event"},
+      {"inputs":[],"name":"emergencyWithdrawAll","outputs":[],"stateMutability":"nonpayable","type":"function"},
+      {"inputs":[],"name":"getMyStake","outputs":[{"internalType":"uint256","name":"","type":"uint256"},{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},
+      {"inputs":[],"name":"owner","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"view","type":"function"},
+      {"inputs":[],"name":"renounceOwnership","outputs":[],"stateMutability":"nonpayable","type":"function"},
+      {"inputs":[{"internalType":"uint256","name":"_amount","type":"uint256"}],"name":"stake","outputs":[],"stateMutability":"nonpayable","type":"function"},
+      {"inputs":[],"name":"usdc","outputs":[{"internalType":"contract IERC20","name":"","type":"address"}],"stateMutability":"view","type":"function"},
+      {"inputs":[],"name":"withdraw","outputs":[],"stateMutability":"nonpayable","type":"function"}
+    ];
+
+    let contract;
+
+    // ✅ Connect wallet
+    async function connectWallet() {
+      if (window.ethereum) {
+        web3 = new Web3(window.ethereum);
+        try {
+          const accounts = await ethereum.request({ method: "eth_requestAccounts" });
+          account = accounts[0];
+          document.getElementById("wallet-address").innerText = "Connected: " + account;
+          contract = new web3.eth.Contract(contractABI, contractAddress);
+        } catch (error) {
+          alert("Wallet connection denied");
+        }
+      } else {
+        alert("Please install MetaMask to use this DApp.");
+      }
+    }
+
+    // ✅ Stake function
+    async function stake() {
+      const amount = document.getElementById("stakeAmount").value;
+      if (!amount || amount <= 0) {
+        alert("Enter a valid amount");
+        return;
+      }
+
+      const usdc = new web3.eth.Contract([
+        {"constant":false,"inputs":[{"name":"spender","type":"address"},{"name":"value","type":"uint256"}],"name":"approve","outputs":[{"name":"","type":"bool"}],"type":"function"}
+      ], usdcAddress);
+
+      const amountInUnits = web3.utils.toWei(amount, "mwei"); // USDC has 6 decimals
+
+      try {
+        // Approve first
+        await usdc.methods.approve(contractAddress, amountInUnits).send({ from: account });
+        // Then stake
+        await contract.methods.stake(amountInUnits).send({ from: account });
+        alert(`Staked ${amount} USDC successfully!`);
+      } catch (err) {
+        console.error(err);
+        alert("Transaction failed.");
+      }
+    }
+
+    // ✅ Get user stake info
+    async function getMyStake() {
+      try {
+        const result = await contract.methods.getMyStake().call({ from: account });
+        const amount = web3.utils.fromWei(result[0], "mwei");
+        const reward = web3.utils.fromWei(result[1], "mwei");
+        document.getElementById("stakeInfo").innerText = `Amount: ${amount} USDC | Reward: ${reward} USDC`;
+      } catch (err) {
+        console.error(err);
+        alert("Failed to fetch stake info");
+      }
+    }
+
+    // ✅ Withdraw function
+    async function withdraw() {
+      try {
+        await contract.methods.withdraw().send({ from: account });
+        alert("Withdrawal successful!");
+      } catch (err) {
+        console.error(err);
+        alert("Withdrawal failed.");
+      }
+    }
+  </script>
+</body>
+</html>
